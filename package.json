@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@playwright/test": "^1.51.0-alpha-2025-02-05"
+  }
+}

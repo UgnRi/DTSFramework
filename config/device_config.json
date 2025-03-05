@@ -1,0 +1,22 @@
+{
+    "device": {
+        "name": "RUTX11",
+        "model": "RUTX11000XXX",
+        "firmware": "RUTX_R_00.07.12",
+        "modem": "EG06-E",
+        "ip": "192.168.1.1",
+        "credentials": {
+            "username": "admin",
+            "password": "Admin123"
+        },
+        "ssh": {
+            "port": 22,
+            "username": "root",
+            "password": "Admin123"
+        }
+    },
+    "test_scenarios": [
+        "mqtt_broker",
+        "data_to_server"
+    ]
+}

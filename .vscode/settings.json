@@ -1,0 +1,11 @@
+{
+    "python.analysis.extraPaths": [
+        "./src"
+    ],
+    "python.formatting.provider": "black",
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter",
+        "editor.formatOnSave": true
+    },
+    "editor.formatOnSave": true
+}

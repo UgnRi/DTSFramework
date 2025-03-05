@@ -1,0 +1,343 @@
+{
+    "scenario_name": "data_to_server",
+    "description": "Data to Server configuration test",
+    "config": {
+        "instanceName": "test_instance3",
+        "data_config": {
+            "name": "input",
+            "type": "Base",
+            "type_settings": {},
+            "format_type": "JSON",
+            "values": [
+                "time",
+                "local_time",
+                "fw",
+                "name",
+                "id"
+            ]
+        },
+        "data_config-bluetooth": {
+            "name": "input",
+            "type": "Bluetooth",
+            "type_settings": {
+                "data_filtering": "Device mac address",
+                "MAC_address": "11:22:33:44:55:66",
+                "segment_count": 1,
+                "send_as_object": true
+            },
+            "format_type": "JSON",
+            "values": [
+                "timestamp",
+                "date",
+                "mac",
+                "name",
+                "rssi",
+                "data"
+            ]
+        },
+        "data_config-gsm": {
+            "name": "input",
+            "type": "GSM",
+            "type_settings": {},
+            "format_type": "JSON",
+            "values": [
+                "connstate",
+                "psstate",
+                "netstate",
+                "imei",
+                "iccid",
+                "model",
+                "manuf",
+                "serial",
+                "revision",
+                "imsi",
+                "simstate",
+                "pinstate",
+                "modemtime",
+                "rssi",
+                "rscp",
+                "ecio",
+                "rsrp",
+                "sinr",
+                "rsrq",
+                "cellid",
+                "operator",
+                "opernum",
+                "conntype",
+                "temp",
+                "pincount",
+                "network",
+                "serving",
+                "modem",
+                "ip",
+                "ipv6"
+            ]
+        },
+        "data_config-impulse_counter": {
+            "name": "input",
+            "type": "Impulse counter",
+            "type_settings": {
+                "data_filtering": "Pin Name",
+                "impulse_counter_pin": "Input (3)",
+                "invert_filter": true,
+                "max_segment_count": 3,
+                "send_as_object": true
+            },
+            "format_type": "JSON",
+            "values": [
+                "pin_name",
+                "timestamp",
+                "count"
+            ]
+        },
+        "data_config-lua_script": {
+            "name": "input",
+            "type": "Lua script",
+            "type_settings": {
+                "lua_script_location": "/home/studentas/Documents/script.lua"
+            },
+            "format_type": "JSON",
+            "values": []
+        },
+        "data_config-mobile_usage": {
+            "name": "input",
+            "type": "Mobile usage",
+            "type_settings": {
+                "data_period": "Month",
+                "current": true,
+                "SIM_number": "SIM 2"
+            },
+            "format_type": "JSON",
+            "values": [
+                "tx",
+                "rx"
+            ]
+        },
+        "data_config-mnf_info": {
+            "name": "input",
+            "type": "MNF info",
+            "type_settings": {},
+            "format_type": "JSON",
+            "values": [
+                "name",
+                "serial",
+                "mac",
+                "maceth",
+                "batch",
+                "hwver"
+            ]
+        },
+        "data_config-modbus": {
+            "name": "input",
+            "type": "Modbus",
+            "type_settings": {
+                "data_filtering": "Server IP address",
+                "server_ip": "172.168.1.10",
+                "segment_count": 3,
+                "send_as_object": true
+            },
+            "format_type": "JSON",
+            "values": [
+                "timestamp",
+                "date",
+                "bdate",
+                "server_id",
+                "server_name",
+                "bserver_id",
+                "ip",
+                "name",
+                "addr",
+                "baddr",
+                "full_addr",
+                "data",
+                "raw_data",
+                "size"
+            ]
+        },
+        "data_config-modbus_alarms": {
+            "name": "input",
+            "type": "Modbus alarms",
+            "type_settings": {
+                "data_filtering": "Server ID",
+                "server_id": 23
+            },
+            "format_type": "JSON",
+            "values": [
+                "timestamp",
+                "alarm_id",
+                "server_id",
+                "test_data",
+                "condition",
+                "data",
+                "register"
+            ]
+        },
+        "data_config-mqtt": {
+            "name": "input",
+            "type": "MQTT",
+            "type_settings": {
+                "server_address": "test.mosquitto.org",
+                "port": 1883,
+                "keepalive": 30,
+                "topic": "test",
+                "client_id": 3,
+                "QoS": 1,
+                "enable_secure_connection": true,
+                "secure_connection": {
+                    "allow_insecure_connection": true,
+                    "certificate_files_from_device": true,
+                    "device_certificates": {
+                        "certificate_authority_file": "ca-file.cert.pem",
+                        "client_certificate": "ca-certificates.crt",
+                        "client_private_keyfile": "ca-file.key.pem"
+                    },
+                    "certificate_authority_file": "ca-file.cert.pem",
+                    "client_certificate": "ca-certificates.crt",
+                    "client_private_keyfile": "ca-file-key.pem"
+                },
+                "username": "username",
+                "password": "password"
+            },
+            "format_type": "JSON",
+            "values": [
+                "data",
+                "topic",
+                "retain"
+            ]
+        },
+        "data_config-mqtt2": {
+            "name": "input",
+            "type": "MQTT",
+            "type_settings": {
+                "server_address": "test.mosquitto.org",
+                "port": 1338,
+                "keepalive": 30,
+                "topic": "test",
+                "client_id": 3,
+                "QoS": 1,
+                "enable_secure_connection": true,
+                "secure_connection": {
+                    "allow_insecure_connection": true,
+                    "certificate_files_from_device": false,
+                    "device_certificates": {
+                        "certificate_authority_file": "ca-file.cert.pem",
+                        "client_certificate": "ca-certificates.crt",
+                        "client_private_keyfile": "ca-file.key.pem"
+                    },
+                    "certificate_authority_file": "/home/studentas/Documents/ca1-file.crt",
+                    "client_certificate": "/home/studentas/Documents/certificate1-file.crt",
+                    "client_private_keyfile": "/home/studentas/Documents/key1-file.crt"
+                },
+                "username": "username",
+                "password": "password"
+            },
+            "format_type": "JSON",
+            "values": [
+                "data",
+                "topic",
+                "retain"
+            ]
+        },
+        "data_config-wifi_scanner": {
+            "name": "input",
+            "type": "Wifi scanner",
+            "type_settings": {
+                "data_filtering": "Signal strength",
+                "signal_strength": [
+                    -100,
+                    -20,
+                    -10,
+                    -1
+                ],
+                "segment_count": 3
+            },
+            "format_type": "JSON",
+            "values": [
+                "timestamp",
+                "date",
+                "mac",
+                "host",
+                "signal"
+            ]
+        },
+        "data_config_format-Custom": {
+            "name": "input",
+            "type": "Base",
+            "type_settings": {},
+            "format_type": "Custom",
+            "format_string": "TS: %time%, name: %name%, id: %id%",
+            "empty_value": "N/A",
+            "delimiter": ","
+        },
+        "data_config_format-Lua-script": {
+            "name": "input",
+            "type": "Base",
+            "type_settings": {},
+            "format_type": "Lua script",
+            "lua_format_script": "/home/studentas/Documents/script.lua"
+        },
+        "collection_config2": {
+            "timer": "scheduler",
+            "day_time": "12:15",
+            "interval_type": "Month days",
+            "month_day": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                20
+            ],
+            "weekdays": [
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Saturday",
+                "Sunday"
+            ],
+            "force_last_day": true,
+            "retry": true,
+            "retry_count": 10,
+            "timeout": 1
+        },
+        "collection_config": {
+            "period": 5,
+            "retry": true
+        },
+        "server_config": {
+            "server_address": "test.mosquitto.org",
+            "port": 1883,
+            "keepalive": 30,
+            "topic": "test/topic123",
+            "client_id": "test_client",
+            "QoS": 2,
+            "enable_secure_connection": false,
+            "secure_connection": {
+                "allow_insecure_connection": true,
+                "certificate_files_from_device": true,
+                "device_certificates": {
+                    "certificate_authority_file": "ca-file.cert.pem",
+                    "client_certificate": "ca-certificates.crt",
+                    "client_private_keyfile": "ca-file.key.pem"
+                },
+                "certificate_authority_file": "/home/studentas/Documents/ca1-file.crt",
+                "client_certificate": "/home/studentas/Documents/certificate1-file.crt",
+                "client_private_keyfile": "/home/studentas/Documents/key1-file.crt"
+            },
+            "use_credentials": false,
+            "username": "username",
+            "password": "password"
+        },
+        "mqttServer": "test.mosquitto.org",
+        "mqttTopic": "test/topic",
+        "clientID": "test_client",
+        "validation": {
+            "timeout": 3,
+            "retry_interval": 10,
+            "max_retries": 3
+        }
+    }
+}
