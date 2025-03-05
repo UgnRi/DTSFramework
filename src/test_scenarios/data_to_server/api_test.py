@@ -566,7 +566,6 @@ class DataToServerAPITest(BaseAPITest):
 
                                 # Handle certificates based on source (device or custom)
                                 if "certificate_files_from_device" in secure_conn:
-                                    # Store if using device files for later use in request formation
                                     uses_device_files = secure_conn[
                                         "certificate_files_from_device"
                                     ]
@@ -585,22 +584,25 @@ class DataToServerAPITest(BaseAPITest):
                                                 in dev_certs
                                             ):
                                                 data_plugin["mqtt_in_cafile"] = (
-                                                    dev_certs[
+                                                    "/etc/certificates/"
+                                                    + dev_certs[
                                                         "certificate_authority_file"
                                                     ]
                                                 )
                                             if "client_certificate" in dev_certs:
                                                 data_plugin["mqtt_in_certfile"] = (
-                                                    dev_certs["client_certificate"]
+                                                    "/etc/ssl/certs/"
+                                                    + dev_certs["client_certificate"]
                                                 )
                                             if "client_private_keyfile" in dev_certs:
                                                 data_plugin["mqtt_in_keyfile"] = (
-                                                    dev_certs["client_private_keyfile"]
+                                                    "/etc/certificates/"
+                                                    + dev_certs[
+                                                        "client_private_keyfile"
+                                                    ]
                                                 )
-
-                                    # For certificate_files_from_device = False, we don't add paths here
-                                    # as we'll handle uploads separately after the initial configuration
-                                    # We'll still set mqtt_device_files = "0" above to indicate custom certificates
+                                    # When certificate_files_from_device is false, we'll handle the certificate uploads
+                                    # after submitting the configuration, so no paths are needed here
 
                         # Handle MQTT credentials
                         if (
@@ -820,9 +822,26 @@ class DataToServerAPITest(BaseAPITest):
                     "certificate_files_from_device", True
                 )
             )
-            if has_mqtt_certificates:
-                logger.info("Uploading custom MQTT certificates")
-                await self.upload_certificates(collection_id, data_id)
+
+            uploaded_cert_paths = {}
+            if (
+                has_mqtt_certificates
+                and "secure_connection" in data_config["type_settings"]
+            ):
+                logger.info("Uploading custom MQTT certificates before configuration")
+                secure_conn = data_config["type_settings"]["secure_connection"]
+                uploaded_cert_paths = await self.upload_certificates(
+                    collection_id, data_id, secure_conn
+                )
+
+                # If we have uploaded certificates, add their paths to the data_plugin
+                if uploaded_cert_paths:
+                    # Update the data_plugin with the paths
+                    for cert_option, path in uploaded_cert_paths.items():
+                        data_plugin[cert_option] = path
+                        logger.info(
+                            f"Added uploaded certificate path to configuration: {cert_option}={path}"
+                        )
 
             collection_update_request = {
                 "method": "PUT",
@@ -968,7 +987,7 @@ class DataToServerAPITest(BaseAPITest):
             # Default IDs if calculation fails - using the pattern
             return {"collection_id": 1, "data_id": 3, "server_id": 2}
 
-    async def upload_certificates(self, collection_id, data_id):
+    async def upload_certificates(self, collection_id, data_id, secure_conn):
         """
         Upload MQTT certificate files individually for custom certificate configuration.
         This is used when certificate_files_from_device is set to false.
@@ -976,75 +995,114 @@ class DataToServerAPITest(BaseAPITest):
         Args:
             collection_id: The collection ID to use
             data_id: The data ID to use
+            secure_conn: The secure connection configuration containing certificate paths
 
         Returns:
-            bool: True if all uploads were successful, False otherwise
+            dict: Dictionary containing uploaded certificate paths
         """
         try:
             logger.info(
                 f"Uploading custom MQTT certificates for collection {collection_id}, data {data_id}"
             )
 
-            # Certificate info with default example content
-            cert_files = {
-                "mqtt_in_cafile": {
-                    "name": "ca_file.crt",
-                    "content": "-----BEGIN CERTIFICATE-----\nMIIDMzCCAhugAwIBAgIUcA6kEujGZKl2alnpjvMnR5A8fqEwDQYJKoZIhvcNAQEL\nBQAwSTEXMBUGA1UEAwwOTVFUVCBCcm9rZXIgQ0ExITAfBgNVBAoMGEhvbWUgTVFU\nVCBJbmZyYXN0cnVjdHVyZTELMAkGA1UEBhMCTFQwHhcNMjUwMjEzMDY0MDIzWhcN\nMjYwMjEzMDY0MDIzWjBJMRcwFQYDVQQDDA5NUVRUIEJyb2tlciBDQTEhMB8GA1UE\nCgwYSG9tZSBNUVRUIEluZnJhc3RydWN0dXJlMQswCQYDVQQGEwJMVDCCASIwDQYJ\nKoZIhvcNAQEBBQADggEPADCCAQoCggEBANG1qrOulhVivu/QLmCu5zbvStOTmeWN\nN6ng3dU4nR/sw5/WY1voaTLgytiDjVP2Lx2dq34VKsjXiLEuuizdTEK50hcJpBVV\nXtY95vMMO3j+YhgDogMiV36H6O1Ifbv6XKRCJtKELtvTbfy0pRijRkLg9lOUtUJ2\nuYjflHldAJSb4OB3n67Bjw+4+iQsG8YObVpazOB50HJjkblObzXZps9qsVyn65ar\nmkDIJ83+TRo73Nzx84RkaqBkFo8cztJAD9uUVjxExodiaDge/qJj1BZt3LqGqaYZ\nUI0VLYmLZhwARYfmH8oDXWkgMCNuX9FQ2ohSKxjyjqtJ2nPsplXTswkCAwEAAaMT\nMBEwDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEAbHPg7QE85AIg\nDUCRE439KRHbu9PLuI/GAqbN+TRNyXu0LkYThLW7apaLFSzYjnXGKg0W08l72DEr\n3G+MiuzHao0iUao10JPG/+ZTc9NXBXWtfrE1jGSwHSAoTfk/wHFjZmiNEho/6Qdy\njpPZT5pYMq/gpf919YPFwEmR3zxH1KHaeY91CVVEQ19ui5oUT0dgw7MJ6D4V0yn9\nEpp7TjsKSawal6Og8Pi6HiuQYVEZb0zAqgO2vJzQcLXSEzbQQf+l4B7GEmMGqaYh\nlirHuLpfyEqz3izGawHSrRtafdEaoXrFQmPu78eOxjrF8V5nTwW7WcrZn6ZglEgv\ndfOkHO8YHQ==\n-----END CERTIFICATE-----",
-                },
-                "mqtt_in_certfile": {
-                    "name": "certificate_file.crt",
-                    "content": "-----BEGIN CERTIFICATE-----\nMIIDNTCCAh2gAwIBAgIUTwZL2o0HSa4o30hHzoNAM4f8PvwwDQYJKoZIhvcNAQEL\nBQAwSTEXMBUGA1UEAwwOTVFUVCBCcm9rZXIgQ0ExITAfBgNVBAoMGEhvbWUgTVFU\nVCBJbmZyYXN0cnVjdHVyZTELMAkGA1UEBhMCTFQwHhcNMjUwMjEzMDY0MDIzWhcN\nMjYwMjEzMDY0MDIzWjBFMRMwEQYDVQQDDAptcXR0LmxvY2FsMSEwHwYDVQQKDBhI\nb21lIE1RVFQgSW5mcmFzdHJ1Y3R1cmUxCzAJBgNVBAYTAkxUMIIBIjANBgkqhkiG\n9w0BAQEFAAOCAQ8AMIIBCgKCAQEAod6lF32JGWyWSrTEqIoTAF1/HJhKVIUQZfVz\nSrIE+Btyy113mDibCUrqA23etu7NAqjRKVeMFL8tgJbPWuIfYd2muEIG7QieReCb\nCNHD0w1YgmlklbMyPCSnpKuYDKjyPB5MuvvnjbqHGqH1h0eR2f0wUduZqcDeJS0h\nlGcf3SohdGiOg+IUoF9lAHIOl2ey0Gt3Ljs72k/wROtn1Fop+Va1aPfvJDcoNXIh\nsg4loeEN2pN8+DEiqBN4nkciHePmWLr8mTpNR9cc6mZNmGMQzLKP1W9RWEJWy8HN\n5w8gxrOb4I0wVzxVomA9Q3KZQwCPP9O1MMRotrIL4dBCQqyucQIDAQABoxkwFzAV\nBgNVHREEDjAMggptcXR0LmxvY2FsMA0GCSqGSIb3DQEBCwUAA4IBAQBMsC3B2lfe\nX3BRFHQGqv7g/BOE5A/ZhpsPc3rMPpoZsRSzU25yhdI4oe82e0Q/mt3xaGBK5CdU\nLyh/fQ1oS/LBpNLPHanFWQIIerv90XvwUgfNyvLBhgKLWZvFZNZORS8dUH8VRb+c\nDtvZiFffF+uvdEskuHuXgwDtOoIC2/HkjIs/goLHhjY9w9gpYOMf+VuLlsAE0E1F\nQuyJGCYfh/cWwxBKxwusojF8h83dl0R66K1nTpUIBppxvJ3IGczq4lc0swRvgDTN\n6mzATYBZNq8KrjfW8BEApfqrQOP4TiG6k5duCk7W+ruoB3QFHbA7dTSaZuZtGzzS\n+xTnL86c/Xm5\n-----END CERTIFICATE-----",
-                },
-                "mqtt_in_keyfile": {
-                    "name": "key_file.crt",
-                    "content": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCgUhEsOr7/sSog\n/R+/fBktbMn9P6HjPmPZJTKY9zXEgR/wF+XV1HmBeFNbLbbJg2cpQzFpQOmhj1/a\naOS5fnFCUwJDpaE8k8h4iJRayq0wvEx0/OQAawNkuvpF/FNoXUhcs07YjSSkq/ze\n/7qz0c01UqR4p8M8gTI0DgCzS6y35MYxnlFZozQqzADZ8pdbK+xdVCTA0SMocGHy\nbQdUuq28Ij6EV63JgsNb3mPnOFwX4bcaE7B5f5kjcg3U/zLE+ZytObAViWMIVdy9\nHp4j+k/qGDy+UERllrqCTZnZ/nOQqzgaVgOB0S5HfHfoPlNEfjifLed9UsmhGCew\nQQesPj5xAgMBAAECggEABOy7HKXfU8vAP2GB1f18voGkK3SGx2FqwB2y510CA1Ee\nHIoiDsanRtwIiiP7hJwrO+rAUVCOUglX80XGmjtxROLM49a/fwoLyJwVcTve7xYn\nA8RNnVpW29jHMwV/Fb/L0cErpQj3klwQI/+CCjUMfdyrMw5K4ohrdOA7PZwPqFnB\nESzYyBjYcM0TzN/wSKlGCSJUb+FKY1qaAIm2UFKxwB5Ot2sw3ubfFsnuVtH81bRC\nLKqWGqPY63GwdZvEB4/BTnHZ/KkLRQbcBbJWF2IJqgZ+SLuwb2a+AM5VcxHsTw3l\nlXSaD8Fdr1KwmcBz/3E3P2BA9kD/UdelhADj33uPWwKBgQDaID+2VcoYUIGKhs1r\n3/AuO/WStZ8fximUmsZEJ3mxnzCspCKPyH19czBd1hKQkTDv+MEnJM3wm8cY8HEB\nU4ATPK/y7mFsdAaOEedlFt2o4QBdFpquNM4ybnuzXs1TA8aLbjD4vGmX1wSYKCDF\nja3cJ497ttDnpwS/U0sD6gW3xwKBgQC8KFrGYnvEOAde9EBXYdtpuibHgp1ePpvU\nK5VcJjH9z6nkZZzzhRHSK5t2fUd+ob5AWNwB6n98J8taX46OnKyGV1GKpYflMQAZ\njMylHJwABTHcPD0pyz4QOGZk30OaNKiSjyucKFi3mtRUxNW3mzwbifj12iNT6fkK\nGF5eFOgIBwKBgQC1JhEjgU3MMZfTjq4tB5Z1HzCL/a+/+JdxpbRAx7PmEnme9tUJ\nKg0l0TL6yx0x2JKWyLTIqGUrjIOlr5F583mrADxzeQuJwTXsaOwN5RaC+RGPPYWK\nZapU8bJjvbixV7Jc+09KU1cyVcyn/LNyvX4FFwmvSZ1mtStZJXhoMMM84wKBgF2F\n9XDMPNaQPuGsqFqGsme/9kyOmKfimNQCAdB2z7xnvvteon/Mcco0kKZ5qNLBlG4p\nfNma9FkC8qnt+07Zg0uXFVnD42NBUtpgSMv9B3FfI6RjcMdYVXX8grC65MA+Ulfe\nv/9zcn14gPfNiqkjiOHrV4rkLVElZ/rjl+xNmfN7AoGAVt+NR1xb/y7K10DjrkVc\nwQB/4aegF87iWyy5jFd3NoHwph1wFekruQdg/g4wNhg870LRnKB76aStDzaj94Lo\nvgzDzD3LNdCeHGWc9Cf5tZV8J4lQMbdyai5qfRe++aRxKIAPWDYTPihEZvHdoYkU\nGH9os7NpkU55pG33sWPYpl0=\n-----END PRIVATE KEY-----",
-                },
+            # Map certificate options to config paths
+            cert_mapping = {
+                "mqtt_in_cafile": "certificate_authority_file",
+                "mqtt_in_certfile": "client_certificate",
+                "mqtt_in_keyfile": "client_private_keyfile",
             }
 
+            # Dictionary to store uploaded file paths
+            uploaded_paths = {}
+
             # Upload each certificate file
-            for cert_option, cert_info in cert_files.items():
-                # Create multipart form data with boundary
-                boundary = f"geckoformboundary{os.urandom(12).hex()}"
+            for cert_option, config_path in cert_mapping.items():
+                # Get the certificate file path from the configuration
+                file_path = secure_conn.get(config_path, "")
 
-                # Build the multipart form data manually
-                form_data = (
-                    f"------{boundary}\r\n"
-                    f'Content-Disposition: form-data; name="option"\r\n\r\n'
-                    f"{cert_option}\r\n"
-                    f"------{boundary}\r\n"
-                    f'Content-Disposition: form-data; name="file"; filename="{cert_info["name"]}"\r\n'
-                    f"Content-Type: application/octet-stream\r\n\r\n"
-                    f"{cert_info['content']}\r\n"
-                    f"------{boundary}--"
-                )
+                if not file_path:
+                    logger.warning(f"No file path provided for {cert_option}, skipping")
+                    continue
 
-                # Set custom headers for multipart form data
-                headers = {
-                    "Authorization": f"Bearer {self.token}",
-                    "Content-Type": f"multipart/form-data; boundary=----{boundary}",
-                }
+                logger.info(f"Reading certificate from path: {file_path}")
 
-                # API endpoint for uploading the certificate
-                endpoint = f"{self.api_endpoint}/collections/config/{collection_id}/data/{data_id}"
+                try:
+                    # Read the file content
+                    with open(file_path, "r") as f:
+                        content = f.read()
 
-                # Make the request to upload the certificate
-                logger.info(f"Uploading {cert_option} certificate file")
-                upload_result = await self.api_request(
-                    "post",
-                    endpoint,
-                    data=form_data,
-                    headers=headers,
-                    raw_data=True,  # Indicate this is raw data that shouldn't be JSON encoded
-                )
-                logger.info(
-                    f"Certificate upload result for {cert_option}: {json.dumps(upload_result)}"
-                )
+                    # Extract filename from path
+                    filename = os.path.basename(file_path)
 
-            return True
+                    # Create a random boundary string
+                    boundary = f"geckoformboundary{os.urandom(12).hex()}"
+
+                    # Build the multipart form data manually
+                    form_data = (
+                        f"------{boundary}\r\n"
+                        f'Content-Disposition: form-data; name="option"\r\n\r\n'
+                        f"{cert_option}\r\n"
+                        f"------{boundary}\r\n"
+                        f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'
+                        f"Content-Type: application/octet-stream\r\n\r\n"
+                        f"{content}\r\n"
+                        f"------{boundary}--"
+                    )
+
+                    # Set custom headers for multipart form data
+                    headers = {
+                        "Authorization": f"Bearer {self.token}",
+                        "Content-Type": f"multipart/form-data; boundary=----{boundary}",
+                    }
+
+                    # API endpoint for uploading the certificate
+                    endpoint = f"{self.api_endpoint}/collections/config/{collection_id}/data/{data_id}"
+
+                    # Make the request to upload the certificate
+                    logger.info(f"Uploading {cert_option} certificate file: {filename}")
+                    upload_result = await self.api_request(
+                        "post",
+                        endpoint,
+                        data=form_data,
+                        headers=headers,
+                        raw_data=True,  # Indicate this is raw data that shouldn't be JSON encoded
+                    )
+                    logger.info(
+                        f"Certificate upload result for {cert_option}: {json.dumps(upload_result)}"
+                    )
+
+                    # Extract the path from the upload result if available
+                    if (
+                        isinstance(upload_result, dict)
+                        and upload_result.get("success")
+                        and "data" in upload_result
+                        and "path" in upload_result["data"]
+                    ):
+                        # Get the path from the response
+                        uploaded_paths[cert_option] = upload_result["data"]["path"]
+                        logger.info(
+                            f"Got path from response for {cert_option}: {uploaded_paths[cert_option]}"
+                        )
+                    else:
+                        # If path not found in result, construct expected path based on the pattern
+                        expected_path = f"/etc/vuci-uploads/cbid.data_sender.{data_id}.{cert_option}{filename}"
+                        uploaded_paths[cert_option] = expected_path
+                        logger.info(
+                            f"Using expected path for {cert_option}: {expected_path}"
+                        )
+
+                except FileNotFoundError:
+                    logger.error(f"Certificate file not found: {file_path}")
+                except Exception as file_error:
+                    logger.error(
+                        f"Error reading certificate file {file_path}: {str(file_error)}"
+                    )
+
+            return uploaded_paths
 
         except Exception as e:
             logger.error(f"Failed to upload MQTT certificates: {str(e)}")
-            return False
+            return {}
 
     async def upload_lua_script(
         self,

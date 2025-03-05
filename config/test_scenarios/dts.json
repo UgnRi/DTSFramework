@@ -3,7 +3,7 @@
     "description": "Data to Server configuration test",
     "config": {
         "instanceName": "test_instance3",
-        "data_config": {
+        "data_config-Base": {
             "name": "input",
             "type": "Base",
             "type_settings": {},
@@ -35,7 +35,7 @@
                 "data"
             ]
         },
-        "data_config-gsm": {
+        "data_config-GSM": {
             "name": "input",
             "type": "GSM",
             "type_settings": {},
@@ -73,7 +73,7 @@
                 "ipv6"
             ]
         },
-        "data_config-impulse_counter": {
+        "data_config-impulse": {
             "name": "input",
             "type": "Impulse counter",
             "type_settings": {
@@ -172,7 +172,7 @@
                 "register"
             ]
         },
-        "data_config-mqtt": {
+        "data_config-mqtt1": {
             "name": "input",
             "type": "MQTT",
             "type_settings": {
