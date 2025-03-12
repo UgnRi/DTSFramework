@@ -1,8 +1,10 @@
 from src.test_scenarios.base_scenario import BaseTestScenario
 from src.backend.ssh_client import SSHClient
 from src.test_scenarios.base_ssh_test import BaseSSHTest
+from src.test_scenarios.data_to_server.api_test import DataToServerAPITest
 from src.utils.logger import setup_logger
 from typing import Dict, Any, List, Union, Optional
+import re
 
 logger = setup_logger()
 
@@ -299,9 +301,25 @@ class DataToServerSSHTest(BaseSSHTest):
 
             # Set data source type for input - always use lowercase for plugin name
             data_type = data_config.get("type", "Base").lower()
-            if data_type == "impulse counter":
+            if data_type == "wifi scanner":
+                await self.ssh_client.execute_command(
+                    f"uci set data_sender.{input_id}.plugin='wifiscan'"
+                )
+            if data_type == "modbus alarms":
+                await self.ssh_client.execute_command(
+                    f"uci set data_sender.{input_id}.plugin='modbus_alarm'"
+                )
+            if data_type == "mnf info":
+                await self.ssh_client.execute_command(
+                    f'uci set data_sender.{input_id}.plugin="mnfinfo"'
+                )
+            elif data_type == "impulse counter":
                 await self.ssh_client.execute_command(
                     f'uci set data_sender.{input_id}.plugin="impulse_counter"'
+                )
+            elif data_type == "mobile usage":
+                await self.ssh_client.execute_command(
+                    f'uci set data_sender.{input_id}.plugin="mdcollect"'
                 )
             else:
                 await self.ssh_client.execute_command(
@@ -312,7 +330,13 @@ class DataToServerSSHTest(BaseSSHTest):
             type_settings = data_config.get("type_settings", {})
             for key, value in type_settings.items():
                 # Skip impulse_counter_pin for impulse counter plugin - we'll handle it separately
-                if data_type.lower() == "impulse counter":
+                if (
+                    data_type.lower() == "impulse counter"
+                    or "mobile usage"
+                    or "mnf info"
+                    or "modbus"
+                    or "wifi scanner"
+                ):
                     continue
 
                 # Handle boolean values
@@ -398,7 +422,7 @@ class DataToServerSSHTest(BaseSSHTest):
                             "certificate_files_from_device", False
                         )
                         await self.ssh_client.execute_command(
-                            f'uci set data_sender.{input_id}.mqtt_in_device_files="{1 if cert_from_device else 0}"'
+                            f'uci set data_sender.{input_id}.mqtt_device_files="{1 if cert_from_device else 0}"'
                         )
 
                         # Use full paths for certificates as in WebUI
@@ -516,7 +540,297 @@ class DataToServerSSHTest(BaseSSHTest):
                     await self.ssh_client.execute_command(
                         f"uci add_list data_sender.{input_id}.members='{value}'"
                     )
+            if data_type.lower() == "mobile usage":
+                mobile_settings = type_settings or {}
+                logger.info(
+                    f"Configuring impulse counter specific settings for input {input_id}"
+                )
 
+                # Set the plugin name
+                await self.ssh_client.execute_command(
+                    f"uci set data_sender.{input_id}.plugin='mdcollect'"
+                )
+                sim_no = mobile_settings.get("SIM_number")
+                if sim_no:
+                    await self.ssh_client.execute_command(
+                        f"uci set data_sender.{input_id}.mdc_sim='{self.strip_letters_regex(sim_no)}'"
+                    )
+
+                period = mobile_settings.get("data_period")
+                period = period.lower()
+                if period:
+                    await self.ssh_client.execute_command(
+                        f"uci set data_sender.{input_id}.mdc_period='{period}'"
+                    )
+
+                current = mobile_settings.get("current")
+                if current == True:
+
+                    await self.ssh_client.execute_command(
+                        f"uci set data_sender.{input_id}.mdc_current='1'"
+                    )
+                elif current == False:
+                    await self.ssh_client.execute_command(
+                        f"uci set data_sender.{input_id}.mdc_current='0'"
+                    )
+
+                # Delete existing members if any
+                await self.ssh_client.execute_command(
+                    f"uci del data_sender.{input_id}.members"
+                )
+                # Add each value as a separate list item (quoted)
+                for value in values:
+                    await self.ssh_client.execute_command(
+                        f"uci add_list data_sender.{input_id}.members='{value}'"
+                    )
+            if data_type.lower() == "modbus":
+                modbus_settings = type_settings or {}
+                logger.info(
+                    f"Configuring impulse counter specific settings for input {input_id}"
+                )
+                data_filtering = modbus_settings.get("data_filtering")
+                if data_filtering == "Server IP address":
+                    await self.ssh_client.execute_command(
+                        f"uci set data_sender.{input_id}.modbus_filter='ip'"
+                    )
+                    server_ip = modbus_settings.get("server_ip")
+                    if server_ip:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.modbus_filter_server_ip='{server_ip}'"
+                        )
+                    if len(server_ip) > 1:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.filter_list_modbus_filter_server_ip='0'"
+                        )
+                    modbus_segments = modbus_settings.get("segment_count")
+                    if modbus_segments:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.modbus_segments='{str(modbus_segments)}'"
+                        )
+                    modbus_object = modbus_segments.get("send_as_object")
+                    if modbus_object:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.modbus_object='1'"
+                        )
+                    else:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.modbus_object='0'"
+                        )
+                elif data_filtering == "Server ID":
+                    await self.ssh_client.execute_command(
+                        f"uci set data_sender.{input_id}.modbus_filter='id'"
+                    )
+                    server_id = modbus_settings.get("server_id")
+                    if server_id:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.modbus_filter_server_id='{server_id}'"
+                        )
+                    if len(server_id) > 1:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.filter_list_modbus_filter_server_id='1'"
+                        )
+                    else:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.filter_list_modbus_filter_server_id='0'"
+                        )
+                    modbus_segments = modbus_settings.get("segment_count")
+                    if modbus_segments:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.modbus_segments='{str(modbus_segments)}'"
+                        )
+                    modbus_object = modbus_segments.get("send_as_object")
+                    if modbus_object:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.modbus_object='1'"
+                        )
+                    else:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.modbus_object='0'"
+                        )
+                elif data_filtering == "Request name":
+                    await self.ssh_client.execute_command(
+                        f"uci set data_sender.{input_id}.modbus_filter='name'"
+                    )
+                    request_name = modbus_settings.get("request_name")
+                    if request_name:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.modbus_filter_request='{request_name}'"
+                        )
+                    if len(request_name) > 1:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.filter_list_modbus_filter_request='1'"
+                        )
+                    else:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.filter_list_modbus_filter_request='0'"
+                        )
+                    modbus_segments = modbus_settings.get("segment_count")
+                    if modbus_segments:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.modbus_segments='{str(modbus_segments)}'"
+                        )
+                    modbus_object = modbus_segments.get("send_as_object")
+                    if modbus_object:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.modbus_object='1'"
+                        )
+                    else:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.modbus_object='0'"
+                        )
+                # Delete existing members if any
+                await self.ssh_client.execute_command(
+                    f"uci del data_sender.{input_id}.members"
+                )
+                # Add each value as a separate list item (quoted)
+                for value in values:
+                    await self.ssh_client.execute_command(
+                        f"uci add_list data_sender.{input_id}.members='{value}'"
+                    )
+
+            if data_type.lower() == "modbus alarms":
+                modbus_alarm_settings = type_settings or {}
+                logger.info(
+                    f"Configuring impulse counter specific settings for input {input_id}"
+                )
+                data_filtering = modbus_settings.get("data_filtering")
+                if data_filtering == "Server ID":
+                    await self.ssh_client.execute_command(
+                        f"uci set data_sender.{input_id}.modbus_alarm_filter='server_id'"
+                    )
+                    server_id = modbus_alarm_settings.get("server_id")
+                    if server_id:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.modbus_alarm_filter_server_id='{str(server_id)}'"
+                        )
+                    if len(server_id) > 1:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.filter_list_modbus_alarm_filter_server_id='1'"
+                        )
+                    else:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.filter_list_modbus_alarm_filter_server_id='0'"
+                        )
+
+                elif data_filtering == "Alarm ID":
+                    await self.ssh_client.execute_command(
+                        f"uci set data_sender.{input_id}.modbus_alarm_filter='alarm_id'"
+                    )
+                    alarm_id = modbus_alarm_settings.get("alarm_id")
+                    if alarm_id:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.modbus_alarm_filter_alarm_id='{alarm_id}'"
+                        )
+                    if len(alarm_id) > 1:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.filter_list_modbus_alarm_filter_alarm_id='1'"
+                        )
+                    else:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.filter_list_modbus_alarm_filter_alarm_id='0'"
+                        )
+                elif data_filtering == "Register number":
+                    await self.ssh_client.execute_command(
+                        f"uci set data_sender.{input_id}.modbus_alarm_filter='register'"
+                    )
+                    register_number = modbus_alarm_settings.get("register_number")
+                    if register_number:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.modbus_alarm_filter_register='{register_number}'"
+                        )
+                    if len(register_number) > 1:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.filter_list_modbus_alarm_filter_register='1'"
+                        )
+                    else:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.filter_list_modbus_alarm_filter_register='0'"
+                        )
+                # Delete existing members if any
+                await self.ssh_client.execute_command(
+                    f"uci del data_sender.{input_id}.members"
+                )
+                # Add each value as a separate list item (quoted)
+                for value in values:
+                    await self.ssh_client.execute_command(
+                        f"uci add_list data_sender.{input_id}.members='{value}'"
+                    )
+            if data_type == "wifi scanner":
+                wifi_scanner_settings = type_settings or {}
+                logger.info(
+                    f"Configuring impulse counter specific settings for input {input_id}"
+                )
+                data_filtering = wifi_scanner_settings.get("data_filtering")
+                if data_filtering == "Signal strength":
+                    await self.ssh_client.execute_command(
+                        f"uci set data_sender.{input_id}.wifi_filter='signal'"
+                    )
+                    signal_strength = wifi_scanner_settings.get("signal_strength")
+                    if len(signal_strength) > 1:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.filter_list_wifi_filter_signal='1'"
+                        )
+                    else:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.filter_list_wifi_filter_signal='0'"
+                        )
+                    if signal_strength:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.wifi_filter_signal='{signal_strength}'"
+                        )
+                elif data_filtering == "Name":
+                    await self.ssh_client.execute_command(
+                        f"uci set data_sender.{input_id}.wifi_filter='name'"
+                    )
+                    device_hostname = wifi_scanner_settings.get("device_hostname")
+                    if len(device_hostname) > 1:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.filter_list_wifi_filter_name='1'"
+                        )
+                    else:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.filter_list_wifi_filter_name='0'"
+                        )
+                    if device_hostname:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.wifi_filter_name='{device_hostname}'"
+                        )
+                    segment_count = wifi_scanner_settings.get("segment_count")
+                    if segment_count:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.wifi_segments='{str(segment_count)}'"
+                        )
+                elif data_filtering == "MAC address":
+                    await self.ssh_client.execute_command(
+                        f"uci set data_sender.{input_id}.wifi_filter='mac'"
+                    )
+                    mac_address = wifi_scanner_settings.get("mac_address")
+                    if len(mac_address) > 1:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.filter_list_wifi_filter_mac='1'"
+                        )
+                    else:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.filter_list_wifi_filter_mac='0'"
+                        )
+                    if mac_address:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.wifi_filter_mac='{mac_address}'"
+                        )
+                    segment_count = wifi_scanner_settings.get("segment_count")
+                    if segment_count:
+                        await self.ssh_client.execute_command(
+                            f"uci set data_sender.{input_id}.wifi_segments='{str(segment_count)}'"
+                        )
+                # Delete existing members if any
+                await self.ssh_client.execute_command(
+                    f"uci del data_sender.{input_id}.members"
+                )
+                # Add each value as a separate list item (quoted)
+                for value in values:
+                    await self.ssh_client.execute_command(
+                        f"uci add_list data_sender.{input_id}.members='{value}'"
+                    )
             logger.info(
                 f"Configured data collection settings via SSH for section {input_id}"
             )
@@ -615,6 +929,9 @@ class DataToServerSSHTest(BaseSSHTest):
         except Exception as e:
             logger.error(f"Failed to configure scheduler settings via SSH: {str(e)}")
             raise
+
+    def strip_letters_regex(self, input_string):
+        return re.sub(r"[^0-9]", "", input_string)
 
     async def _configure_period(self, period_config):
         """Configure period-based collection via UCI with dynamic section ID."""
@@ -722,23 +1039,46 @@ class DataToServerSSHTest(BaseSSHTest):
 
                 # Process certificates based on source - use full paths
                 if is_device_certs and "device_certificates" in secure_config:
+                    # Using device certificates
                     cert_source = secure_config["device_certificates"]
+                    # Set certificate paths with full paths
+                    if "certificate_authority_file" in cert_source:
+                        await self.ssh_client.execute_command(
+                            f'uci set data_sender.{output_id}.mqtt_cafile="/etc/certificates/{cert_source["certificate_authority_file"]}"'
+                        )
+                    if "client_certificate" in cert_source:
+                        await self.ssh_client.execute_command(
+                            f'uci set data_sender.{output_id}.mqtt_certfile="/etc/ssl/certs/{cert_source["client_certificate"]}"'
+                        )
+                    if "client_private_keyfile" in cert_source:
+                        await self.ssh_client.execute_command(
+                            f'uci set data_sender.{output_id}.mqtt_keyfile="/etc/certificates/{cert_source["client_private_keyfile"]}"'
+                        )
                 else:
-                    cert_source = secure_config
 
-                # Set certificate paths with full paths
-                if "certificate_authority_file" in cert_source:
-                    await self.ssh_client.execute_command(
-                        f'uci set data_sender.{output_id}.mqtt_cafile="/etc/certificates/{cert_source["certificate_authority_file"]}"'
-                    )
-                if "client_certificate" in cert_source:
-                    await self.ssh_client.execute_command(
-                        f'uci set data_sender.{output_id}.mqtt_certfile="/etc/ssl/certs/{cert_source["client_certificate"]}"'
-                    )
-                if "client_private_keyfile" in cert_source:
-                    await self.ssh_client.execute_command(
-                        f'uci set data_sender.{output_id}.mqtt_keyfile="/etc/certificates/{cert_source["client_private_keyfile"]}"'
-                    )
+                    collection_id = self.section_ids["collection"]
+                    data_id = self.section_ids["output"]
+                    try:
+                        uploaded_paths = await DataToServerAPITest.upload_certificates(
+                            collection_id, data_id, secure_config
+                        )
+
+                        if "mqtt_in_cafile" in uploaded_paths:
+                            await self.ssh_client.execute_command(
+                                f'uci set data_sender.{output_id}.mqtt_cafile="{uploaded_paths["mqtt_in_cafile"]}"'
+                            )
+                        if "mqtt_in_certfile" in uploaded_paths:
+                            await self.ssh_client.execute_command(
+                                f'uci set data_sender.{output_id}.mqtt_certfile="{uploaded_paths["mqtt_in_certfile"]}"'
+                            )
+                        if "mqtt_in_keyfile" in uploaded_paths:
+                            await self.ssh_client.execute_command(
+                                f'uci set data_sender.{output_id}.mqtt_keyfile="{uploaded_paths["mqtt_in_keyfile"]}"'
+                            )
+                    except Exception as upload_error:
+                        logger.error(
+                            f"Failed to upload certificates: {str(upload_error)}"
+                        )
 
             # Configure credentials if needed
             use_credentials = 1 if server_config.get("use_credentials") else 0

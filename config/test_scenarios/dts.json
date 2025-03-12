@@ -172,7 +172,7 @@
                 "register"
             ]
         },
-        "data_config-mqtt1": {
+        "data_config-mqtt": {
             "name": "input",
             "type": "MQTT",
             "type_settings": {
@@ -205,7 +205,7 @@
                 "retain"
             ]
         },
-        "data_config-mqtt2": {
+        "data_config": {
             "name": "input",
             "type": "MQTT",
             "type_settings": {
