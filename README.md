@@ -18,7 +18,7 @@ The Teltonika Router Test Framework allows you to automate configuration and val
 - Required Python packages (install using `pip install -r requirements.txt`)
 
 ## Installation
-    
+
 1. Clone the repository
 2. Install dependencies: `pip install -r requirements.txt`
 3. Install Playwright: `playwright install firefox`
@@ -29,24 +29,36 @@ The framework uses configuration files to specify device and test parameters:
 
 ### Device Configuration
 
-Create a device configuration file (default: `config/device_config.json`) with the router connection details:
+Create a device configuration file (`config/device_config.json`) with the router connection details and scenario lists:
 
 ```json
 {
   "device": {
-    "name": "Router Model",
+    "name": "RUTX11",
+    "model": "RUTX11000XXX",
+    "firmware": "RUTX_R_00.07.12",
+    "modem": "EG06-E",
     "ip": "192.168.1.1",
-    "username": "admin",
-    "password": "admin",
-    "modem": "model",
-    "firmware": "version"
+    "credentials": {
+      "username": "admin",
+      "password": "Admin123"
+    },
+    "ssh": {
+      "port": 22,
+      "username": "root",
+      "password": "Admin123"
+    }
   },
-  "ssh": {
-    "port": 22
-  },
-  "api": {
-    "port": 80
-  }
+  "mqtt_scenarios": [
+    "mqtt1",
+    "mqtt2",
+    "mqtt3"
+  ],
+  "dts_scenarios": [
+    "dts_1",
+    "dts_2",
+    "dts_3"
+  ]
 }
 ```
 
@@ -58,7 +70,7 @@ Create test scenarios in the `config/test_scenarios` directory. Each scenario sh
 
 ```json
 {
-  "scenario_name": "data_to_server",
+  "scenario_name": "dts_1",
   "description": "Data to Server configuration test",
   "config": {
     "instanceName": "test_instance",
@@ -92,31 +104,42 @@ Create test scenarios in the `config/test_scenarios` directory. Each scenario sh
 
 ## Usage
 
-Run the framework with specific test types and scenarios:
+The framework automatically runs tests for all scenarios specified in the device configuration file.
 
 ```bash
-python run.py --test-type <test_type> --mqtt-scenario <mqtt_scenario> --dts-scenario <dts_scenario>
+python run.py [options]
 ```
 
-### Parameters
+### Command-line Options
 
-- `--test-type`: Type of tests to run (`ssh`, `api`, `gui`, or `all`)
-- `--mqtt-scenario`: MQTT Broker scenario name (without .json extension)
-- `--dts-scenario`: Data to Server scenario name (without .json extension)
+- `--test-type`: Type of tests to run (`ssh`, `api`, `gui`, or `all`, default: `all`)
 - `--config`: Path to device configuration file (default: `config/device_config.json`)
 - `--scenario-dir`: Directory containing scenario files (default: `config/test_scenarios`)
 
 ### Examples
 
-Run SSH tests for Data to Server:
+Run SSH tests for all scenarios:
 ```bash
-python run.py --test-type ssh --dts-scenario dts
+python run.py --test-type ssh
 ```
 
-Run all tests for both MQTT Broker and Data to Server:
+Run all tests with a custom configuration file:
 ```bash
-python run.py --test-type all --mqtt-scenario mqtt --dts-scenario dts
+python run.py --config custom_config.json
 ```
+
+Run API tests for all scenarios:
+```bash
+python run.py --test-type api
+```
+
+## How It Works
+
+1. The framework reads all scenarios listed in the device configuration file
+2. It runs tests for all listed scenarios, in the order they are defined
+3. If both MQTT and DTS scenarios are present, validation is run after each DTS scenario to verify functionality
+4. If only MQTT or only DTS scenarios are present, those will be tested on their own
+5. Results for all tests are compiled and written to a CSV file
 
 ## Architecture
 
@@ -145,8 +168,8 @@ The filename includes device information and timestamp.
 To add a new test scenario:
 
 1. Create a new scenario JSON file in `config/test_scenarios/`
-2. Implement test classes in `src/test_scenarios/`
-3. Update the main runner to detect and execute your tests
+2. Add the scenario name to the `mqtt_scenarios` or `dts_scenarios` list in your device configuration
+3. Implement test classes in `src/test_scenarios/`
 
 ### Custom Test Implementations
 

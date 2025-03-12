@@ -15,8 +15,10 @@
             "password": "Admin123"
         }
     },
-    "test_scenarios": [
-        "mqtt_broker",
-        "data_to_server"
+    "mqtt_scenarios": [
+        "mqtt"
+    ],
+    "dts_scenarios": [
+        "dts"
     ]
 }

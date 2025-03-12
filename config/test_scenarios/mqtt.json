@@ -26,9 +26,9 @@
                 "require_certificate": false,
                 "certificate_files_from_device": false,
                 "device_certificates": {
-                    "ca_file": "/home/studentas/Documents/ca1-file.crt",
-                    "certificate_file": "/home/studentas/Documents/certificate1-file.crt",
-                    "key_file": "/home/studentas/Documents/key1-file.crt"
+                    "ca_file": "/home/studentas/documents/ca1-file.crt",
+                    "certificate_file": "/home/studentas/documents/certificate1-file.crt",
+                    "key_file": "/home/studentas/documents/key1-file.crt"
                 }
             },
             "TLS_version": "tlsv1.1"
