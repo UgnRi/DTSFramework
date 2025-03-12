@@ -5,13 +5,13 @@
         "port": "1883",
         "anonymous_access": true,
         "remote_access": true,
-        "security":{
+        "security3": {
             "TLS/SSL": false,
             "certificates": {
-                "tls_type": "Certificate based", 
+                "tls_type": "Certificate based",
                 "require_certificate": false,
                 "certificate_files_from_device": false,
-                "device_certificates":{
+                "device_certificates": {
                     "ca_file": "ca-file.cert.pem",
                     "certificate_file": "ca-certificates.crt",
                     "key_file": "ca-file.key.pem"
@@ -19,13 +19,13 @@
             },
             "TLS_version": "tlsv1.1"
         },
-        "security3":{
+        "security": {
             "TLS/SSL": true,
             "certificates": {
-                "tls_type": "Certificate based", 
+                "tls_type": "Certificate based",
                 "require_certificate": false,
                 "certificate_files_from_device": false,
-                "device_certificates":{
+                "device_certificates": {
                     "ca_file": "/home/studentas/Documents/ca1-file.crt",
                     "certificate_file": "/home/studentas/Documents/certificate1-file.crt",
                     "key_file": "/home/studentas/Documents/key1-file.crt"
@@ -33,21 +33,21 @@
             },
             "TLS_version": "tlsv1.1"
         },
-        "security1":{
+        "security1": {
             "TLS/SSL": true,
             "certificates": {
-                "tls_type": "Pre-Shared-Key based", 
+                "tls_type": "Pre-Shared-Key based",
                 "pre-shared-key": "Paswoord",
                 "identity": "ideeeentity"
             },
             "TLS_version": "tls1.1"
         },
-        "security2":{
+        "security2": {
             "TLS/SSL": true,
             "certificates": {
-                "tls_type": "Certificate based", 
+                "tls_type": "Certificate based",
                 "require_certificate": true,
-                "device_certificates":{
+                "device_certificates": {
                     "ca_file": "C:/users/user/documents/ca-file.crt",
                     "certificate_file": "C:/users/user/documents/certificate-file.crt",
                     "key_file": "C:/users/user/documents/key-file.crt"
@@ -70,7 +70,7 @@
                 "password_file_location": "/home/studentas/Documents/password_file.txt",
                 "users": {
                     "admin": "AdminPassword123!",
-                    "sensor_reader": "ReadOnlyAccess456",   
+                    "sensor_reader": "ReadOnlyAccess456",
                     "command_user": "WriteCommands789"
                 }
             },
