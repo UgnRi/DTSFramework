@@ -1,0 +1,88 @@
+{
+    "scenario_name": "mqtt_broker",
+    "description": "MQTT Broker configuration test",
+    "config": {
+        "port": "1883",
+        "anonymous_access": true,
+        "remote_access": true,
+        "security": {
+            "TLS/SSL": false,
+            "certificates": {
+                "tls_type": "Certificate based",
+                "require_certificate": false,
+                "certificate_files_from_device": true,
+                "device_certificates": {
+                    "ca_file": "ca-file.cert.pem",
+                    "certificate_file": "ca-certificates.crt",
+                    "key_file": "ca-file.key.pem"
+                }
+            },
+            "TLS_version": "tlsv1.1"
+        },
+        "security3": {
+            "TLS/SSL": true,
+            "certificates": {
+                "tls_type": "Certificate based",
+                "require_certificate": false,
+                "certificate_files_from_device": false,
+                "device_certificates": {
+                    "ca_file": "/home/studentas/documents/ca1-file.crt",
+                    "certificate_file": "/home/studentas/documents/certificate1-file.crt",
+                    "key_file": "/home/studentas/documents/key1-file.crt"
+                }
+            },
+            "TLS_version": "tlsv1.1"
+        },
+        "security1": {
+            "TLS/SSL": true,
+            "certificates": {
+                "tls_type": "Pre-Shared-Key based",
+                "pre-shared-key": "Paswoord",
+                "identity": "ideeeentity"
+            },
+            "TLS_version": "tls1.1"
+        },
+        "security2": {
+            "TLS/SSL": true,
+            "certificates": {
+                "tls_type": "Certificate based",
+                "require_certificate": true,
+                "device_certificates": {
+                    "ca_file": "C:/users/user/documents/ca-file.crt",
+                    "certificate_file": "C:/users/user/documents/certificate-file.crt",
+                    "key_file": "C:/users/user/documents/key-file.crt"
+                }
+            },
+            "TLS_version": "tls1.1"
+        },
+        "miscellaneous": {
+            "acl_file": {
+                "acl_file_location": "/home/studentas/Documents/acl_file.acl",
+                "rules": [
+                    "# General access rules",
+                    "topic read home/sensors/#",
+                    "topic write home/commands/#",
+                    "user admin",
+                    "topic readwrite #"
+                ]
+            },
+            "password_file": {
+                "password_file_location": "/home/studentas/Documents/password_file.txt",
+                "users": {
+                    "admin": "AdminPassword123!",
+                    "sensor_reader": "ReadOnlyAccess456",
+                    "command_user": "WriteCommands789"
+                }
+            },
+            "persistence": true,
+            "allow_anonymous": true,
+            "max_queued_messages": 1000,
+            "maximum_packet_size": 1048576
+        },
+        "validation": {
+            "timeout": 30,
+            "retry_interval": 5,
+            "max_retries": 3
+        }
+    }
+}

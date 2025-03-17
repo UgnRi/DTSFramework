@@ -16,9 +16,11 @@
         }
     },
     "mqtt_scenarios": [
-        "mqtt"
+        "mqtt",
+        "mqtt copy"
     ],
     "dts_scenarios": [
-        "dts"
+        "dts",
+        "dts copy"
     ]
 }

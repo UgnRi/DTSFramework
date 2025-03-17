@@ -1154,28 +1154,25 @@ class DataToServerAPITest(BaseAPITest):
                 f"------{boundary}--"
             )
 
-            # Set custom headers for multipart form data
             headers = {
                 "Authorization": f"Bearer {self.token}",
                 "Content-Type": f"multipart/form-data; boundary=----{boundary}",
             }
 
-            # API endpoint for uploading the script
             endpoint = (
                 f"{self.api_endpoint}/collections/config/{collection_id}/data/{data_id}"
             )
 
-            # Make the request to upload the Lua script
             result = await self.api_request(
                 "post",
                 endpoint,
                 data=form_data,
                 headers=headers,
-                raw_data=True,  # Indicate this is raw data that shouldn't be JSON encoded
+                raw_data=True,
             )
 
             logger.info(f"Lua script upload result: {json.dumps(result)}")
-            return result  # Return the full result so we can extract the path
+            return result
 
         except Exception as e:
             logger.error(f"Failed to upload Lua script: {str(e)}")
