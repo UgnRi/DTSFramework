@@ -18,7 +18,7 @@ def parse_arguments():
     parser.add_argument(
         "--test-type",
         choices=["ssh", "api", "gui", "all"],
-        default="all",
+        default=None,
         help="Type of tests to run",
     )
 
@@ -49,7 +49,12 @@ def load_scenario_file(scenario_dir: str, scenario_name: str) -> dict:
         if "scenario_name" not in data:
             data["scenario_name"] = scenario_name
 
-        return {"scenario_name": data["scenario_name"], "config": data["config"]}
+        # Ensure we return a dictionary with both scenario_name and config
+        result = {
+            "scenario_name": data.get("scenario_name", scenario_name),
+            "config": data.get("config", {}),
+        }
+        return result
 
 
 def get_test_class_name(test_dir: str, test_type: str) -> str:
@@ -75,45 +80,55 @@ def get_test_class_name(test_dir: str, test_type: str) -> str:
     return f'{test_dir.title().replace("_", "")}{test_type}Test'
 
 
-async def run_tests_for_scenario(
+async def run_single_test(
     test_type: str, test_dir: str, device_config: dict, scenario_config: dict
 ):
-    """Run specified test type for a given scenario"""
-    results = []
-
-    if test_type in ["ssh", "all"]:
-        module = __import__(f"src.test_scenarios.{test_dir}.ssh_test", fromlist=[""])
-        class_name = get_test_class_name(test_dir, "SSH")
+    """Run a single test and return the test instance and result."""
+    try:
+        # Import the test module
+        module = __import__(
+            f"src.test_scenarios.{test_dir}.{test_type.lower()}_test", fromlist=[""]
+        )
+        class_name = get_test_class_name(test_dir, test_type.upper())
         test_class = getattr(module, class_name)
 
-        # Pass the entire scenario_config, just like in GUI tests
+        # Create test instance
         test = test_class(device_config=device_config, scenario_config=scenario_config)
+
+        # Run the test
         result = await test.run()
-        results.append(
-            {
-                "scenario": f'{test_dir}_ssh_{scenario_config["scenario_name"]}',
+
+        # Extract scenario name safely
+        scenario_name = ""
+        if isinstance(scenario_config, dict):
+            scenario_name = scenario_config.get("scenario_name", "")
+
+        return {
+            "test_instance": test,
+            "result": {
+                "scenario": f"{test_dir}_{test_type.lower()}_{scenario_name}",
                 "status": "PASS" if result["success"] else "FAIL",
                 "details": result["details"],
-            }
-        )
+            },
+            "success": result["success"],
+        }
+    except Exception as e:
+        logger.error(f"Error in {test_dir} - {test_type} test: {str(e)}")
 
-    if test_type in ["api", "all"]:
-        module = __import__(f"src.test_scenarios.{test_dir}.api_test", fromlist=[""])
-        class_name = get_test_class_name(test_dir, "API")
-        test_class = getattr(module, class_name)
+        # Extract scenario name safely
+        scenario_name = ""
+        if isinstance(scenario_config, dict):
+            scenario_name = scenario_config.get("scenario_name", "")
 
-        # Pass the entire scenario_config, just like in GUI tests
-        test = test_class(device_config=device_config, scenario_config=scenario_config)
-        result = await test.run()
-        results.append(
-            {
-                "scenario": f'{test_dir}_api_{scenario_config["scenario_name"]}',
-                "status": "PASS" if result["success"] else "FAIL",
-                "details": result["details"],
-            }
-        )
-
-    return results
+        return {
+            "test_instance": None,
+            "result": {
+                "scenario": f"{test_dir}_{test_type.lower()}_{scenario_name}",
+                "status": "FAIL",
+                "details": {"error": str(e)},
+            },
+            "success": False,
+        }
 
 
 async def run_gui_tests(
@@ -122,11 +137,14 @@ async def run_gui_tests(
     scenarios: List[Tuple[str, dict]],
     validator: WirelessValidator,
 ):
-    """Run GUI tests for specified scenarios"""
+    """Run GUI tests for specified scenarios with proper validation and cleanup sequence."""
     results = []
 
     # Ensure MQTT broker test runs first
     sorted_scenarios = sorted(scenarios, key=lambda x: x[0] != "mqtt_broker")
+
+    # Track MQTT configuration for validation
+    mqtt_config = None
 
     for test_dir, config in sorted_scenarios:
         logger.info(
@@ -136,15 +154,15 @@ async def run_gui_tests(
         test = None
 
         try:
+            # Import the test module
             module = __import__(
                 f"src.test_scenarios.{test_dir}.gui_test", fromlist=[""]
             )
             class_name = get_test_class_name(test_dir, "GUI")
             test_class = getattr(module, class_name)
 
+            # Create and run the test
             test = test_class(device_config, page, config)
-
-            # Run setup and execute separately
             await test.setup()
             await test.execute()
 
@@ -158,31 +176,14 @@ async def run_gui_tests(
                 try:
                     await test.logout()
                     logger.info("Successfully logged out after MQTT test")
+                    # Store MQTT config for later validation
+                    mqtt_config = config
                 except Exception as logout_error:
                     logger.error(
                         f"Failed to logout after MQTT test: {str(logout_error)}"
                     )
 
-            # Run validation only after DTS configuration
-            mqtt_scenarios = [s for s in scenarios if s[0] == "mqtt_broker"]
-
-            # Only validate after DTS tests if both MQTT and DTS configs exist
-            if test_dir == "data_to_server" and mqtt_scenarios:
-                # Get latest MQTT config for validation
-                latest_mqtt = mqtt_scenarios[-1][1]
-
-                logger.info(
-                    f"Running validation after {config['scenario_name']} with latest MQTT config"
-                )
-                validation_result = await validator.validate_ap_config(
-                    mqtt_config=latest_mqtt, dts_config=config
-                )
-
-                result["success"] = result["success"] and validation_result["success"]
-                logger.info(
-                    f"Validation completed with success: {validation_result['success']}"
-                )
-
+            # Add result to results list
             results.append(
                 {
                     "scenario": f'{test_dir}_gui_{config["scenario_name"]}',
@@ -191,17 +192,42 @@ async def run_gui_tests(
                 }
             )
 
-            # Cleanup after each test
-            if test:
-                try:
-                    await test.cleanup()
-                    logger.info(
-                        f"Cleanup completed for {test_dir} - {config['scenario_name']}"
-                    )
-                except Exception as e:
-                    logger.error(
-                        f"Failed to cleanup {test_dir} - {config['scenario_name']} test: {str(e)}"
-                    )
+            # Run validation after DTS test
+            if test_dir == "data_to_server" and mqtt_config:
+                logger.info(
+                    f"Running validation after GUI {config['scenario_name']} with MQTT config"
+                )
+                validation_result = await validator.validate_ap_config(
+                    mqtt_config=mqtt_config, dts_config=config
+                )
+
+                # Add validation result
+                results.append(
+                    {
+                        "scenario": f'validation_gui_{mqtt_config["scenario_name"]}_{config["scenario_name"]}',
+                        "status": (
+                            "PASS"
+                            if validation_result.get("success", False)
+                            else "FAIL"
+                        ),
+                        "details": validation_result,
+                    }
+                )
+
+                logger.info(
+                    f"GUI validation completed with success: {validation_result.get('success', False)}"
+                )
+
+            # Run cleanup after validation
+            try:
+                await test.cleanup()
+                logger.info(
+                    f"Cleanup completed for GUI test {test_dir} - {config['scenario_name']}"
+                )
+            except Exception as cleanup_error:
+                logger.error(
+                    f"Failed to cleanup GUI test {test_dir} - {config['scenario_name']}: {str(cleanup_error)}"
+                )
 
         except Exception as e:
             logger.error(
@@ -215,9 +241,20 @@ async def run_gui_tests(
                 }
             )
 
+            # Attempt cleanup even if test failed
+            if test:
+                try:
+                    await test.cleanup()
+                    logger.info(
+                        f"Cleanup completed for failed GUI test {test_dir} - {config['scenario_name']}"
+                    )
+                except Exception as cleanup_error:
+                    logger.error(
+                        f"Failed to cleanup failed GUI test {test_dir} - {config['scenario_name']}: {str(cleanup_error)}"
+                    )
         finally:
             await page.close()
-            await asyncio.sleep(2)
+            await asyncio.sleep(2)  # Give time for browser operations to complete
 
     return results
 
@@ -272,14 +309,18 @@ async def main():
         f"{device_config['device']['modem']}_{device_config['device']['firmware']}.csv"
     )
 
+    # Store all test results
     results = []
+
+    # Determine test type (default to "all" if not specified)
+    effective_test_type = args.test_type if args.test_type is not None else "all"
 
     try:
         # Create validator instance
-        validator = WirelessValidator(device_config)
+        validator = WirelessValidator(device_config, test_type=effective_test_type)
 
-        # Run GUI tests if requested
-        if args.test_type in ["gui", "all"]:
+        # 1. Run GUI tests if requested (includes their own validation and cleanup)
+        if effective_test_type in ["gui", "all"]:
             from playwright.async_api import async_playwright
 
             async with async_playwright() as p:
@@ -306,36 +347,65 @@ async def main():
                     await browser_context.close()
                     await browser.close()
 
-        # Run SSH and API tests if requested
-        if args.test_type in ["ssh", "api", "all"]:
-            # Group scenarios by type to ensure validation happens with each pair
+        # 2. Run SSH tests if requested
+        if effective_test_type in ["ssh", "all"]:
+            # Group scenarios by type
             mqtt_loaded = [s for s in loaded_scenarios if s[0] == "mqtt_broker"]
             dts_loaded = [s for s in loaded_scenarios if s[0] == "data_to_server"]
 
-            # Process all scenarios
-            for test_dir, config in loaded_scenarios:
-                scenario_results = await run_tests_for_scenario(
-                    args.test_type, test_dir, device_config, config
+            # Store MQTT config for validation
+            mqtt_config = None
+            if mqtt_loaded:
+                mqtt_config = mqtt_loaded[-1][1]
+
+            # Run MQTT broker SSH test first
+            if mqtt_loaded:
+                latest_mqtt_scenario = mqtt_loaded[-1][1]
+
+                # Run the MQTT SSH test and get the result
+                logger.info(
+                    f"Running MQTT broker SSH test for scenario {latest_mqtt_scenario.get('scenario_name', '')}"
                 )
-                results.extend(scenario_results)
+                mqtt_ssh_result = await run_single_test(
+                    "ssh", "mqtt_broker", device_config, latest_mqtt_scenario
+                )
 
-                # Run validation only after DTS configuration if both types exist
-                if test_dir == "data_to_server" and mqtt_loaded:
-                    # Get the latest config of each type
-                    latest_mqtt = mqtt_loaded[-1][1]
-                    latest_dts = dts_loaded[-1][1]
+                # Add the result to results list
+                results.append(mqtt_ssh_result["result"])
 
+                # Store the test instance for cleanup after validation
+                mqtt_ssh_test = mqtt_ssh_result["test_instance"]
+
+                # Run DTS SSH test next
+                if dts_loaded:
+                    latest_dts_scenario = dts_loaded[-1][1]
+
+                    # Run the DTS SSH test and get the result
                     logger.info(
-                        f"Running validation after {config['scenario_name']} with latest MQTT and DTS configs"
+                        f"Running Data to Server SSH test for scenario {latest_dts_scenario.get('scenario_name', '')}"
+                    )
+                    dts_ssh_result = await run_single_test(
+                        "ssh", "data_to_server", device_config, latest_dts_scenario
+                    )
+
+                    # Add the result to results list
+                    results.append(dts_ssh_result["result"])
+
+                    # Store the test instance for cleanup after validation
+                    dts_ssh_test = dts_ssh_result["test_instance"]
+
+                    # Run validation after both SSH tests are complete
+                    logger.info(
+                        f"Running validation for SSH tests with MQTT and DTS configs"
                     )
                     validation_result = await validator.validate_ap_config(
-                        mqtt_config=latest_mqtt, dts_config=latest_dts
+                        mqtt_config=latest_mqtt_scenario, dts_config=latest_dts_scenario
                     )
 
                     # Add validation result
                     results.append(
                         {
-                            "scenario": f'validation_{latest_mqtt["scenario_name"]}_{latest_dts["scenario_name"]}',
+                            "scenario": f'validation_ssh_{latest_mqtt_scenario.get("scenario_name", "")}_{latest_dts_scenario.get("scenario_name", "")}',
                             "status": (
                                 "PASS"
                                 if validation_result.get("success", False)
@@ -346,8 +416,120 @@ async def main():
                     )
 
                     logger.info(
-                        f"Validation completed with success: {validation_result.get('success', False)}"
+                        f"SSH validation completed with success: {validation_result.get('success', False)}"
                     )
+
+                    # Clean up the tests after validation
+                    if dts_ssh_test:
+                        try:
+                            await dts_ssh_test.cleanup()
+                            logger.info("Cleanup completed for Data to Server SSH test")
+                        except Exception as e:
+                            logger.error(
+                                f"Failed to cleanup Data to Server SSH test: {str(e)}"
+                            )
+
+                # Clean up MQTT test
+                if mqtt_ssh_test:
+                    try:
+                        await mqtt_ssh_test.cleanup()
+                        logger.info("Cleanup completed for MQTT broker SSH test")
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to cleanup MQTT broker SSH test: {str(e)}"
+                        )
+
+        # 3. Run API tests if requested
+        if effective_test_type in ["api", "all"]:
+            # Group scenarios by type
+            mqtt_loaded = [s for s in loaded_scenarios if s[0] == "mqtt_broker"]
+            dts_loaded = [s for s in loaded_scenarios if s[0] == "data_to_server"]
+
+            # Store MQTT config for validation
+            mqtt_config = None
+            if mqtt_loaded:
+                mqtt_config = mqtt_loaded[-1][1]
+
+            # Run MQTT broker API test first
+            if mqtt_loaded:
+                latest_mqtt_scenario = mqtt_loaded[-1][1]
+
+                # Run the MQTT API test and get the result
+                logger.info(
+                    f"Running MQTT broker API test for scenario {latest_mqtt_scenario.get('scenario_name', '')}"
+                )
+                mqtt_api_result = await run_single_test(
+                    "api", "mqtt_broker", device_config, latest_mqtt_scenario
+                )
+
+                # Add the result to results list
+                results.append(mqtt_api_result["result"])
+
+                # Store the test instance for cleanup after validation
+                mqtt_api_test = mqtt_api_result["test_instance"]
+
+                # Run DTS API test next
+                if dts_loaded:
+                    latest_dts_scenario = dts_loaded[-1][1]
+
+                    # Run the DTS API test and get the result
+                    logger.info(
+                        f"Running Data to Server API test for scenario {latest_dts_scenario.get('scenario_name', '')}"
+                    )
+                    dts_api_result = await run_single_test(
+                        "api", "data_to_server", device_config, latest_dts_scenario
+                    )
+
+                    # Add the result to results list
+                    results.append(dts_api_result["result"])
+
+                    # Store the test instance for cleanup after validation
+                    dts_api_test = dts_api_result["test_instance"]
+
+                    # Run validation after both API tests are complete
+                    logger.info(
+                        f"Running validation for API tests with MQTT and DTS configs"
+                    )
+                    validation_result = await validator.validate_ap_config(
+                        mqtt_config=latest_mqtt_scenario, dts_config=latest_dts_scenario
+                    )
+
+                    # Add validation result
+                    results.append(
+                        {
+                            "scenario": f'validation_api_{latest_mqtt_scenario.get("scenario_name", "")}_{latest_dts_scenario.get("scenario_name", "")}',
+                            "status": (
+                                "PASS"
+                                if validation_result.get("success", False)
+                                else "FAIL"
+                            ),
+                            "details": validation_result,
+                        }
+                    )
+
+                    logger.info(
+                        f"API validation completed with success: {validation_result.get('success', False)}"
+                    )
+
+                    # Clean up the tests after validation
+                    if dts_api_test:
+                        try:
+                            await dts_api_test.cleanup()
+                            logger.info("Cleanup completed for Data to Server API test")
+                        except Exception as e:
+                            logger.error(
+                                f"Failed to cleanup Data to Server API test: {str(e)}"
+                            )
+
+                # Clean up MQTT test
+                if mqtt_api_test:
+                    try:
+                        await mqtt_api_test.cleanup()
+                        logger.info("Cleanup completed for MQTT broker API test")
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to cleanup MQTT broker API test: {str(e)}"
+                        )
 
         # Write results
         result_writer = ResultWriter(result_file)

@@ -36,9 +36,8 @@ class DataToServerSSHTest(BaseSSHTest):
             # Verify configuration
             verification_result = await self._verify_configuration()
 
-            # Cleanup configuration after successful validation
-            # if verification_result:
-            #   await self._cleanup_configuration()
+            # Mark that configuration changes were made so cleanup will happen
+            self.config_changes_made = True
 
             # Return success result
             return {
@@ -51,7 +50,50 @@ class DataToServerSSHTest(BaseSSHTest):
             logger.error(f"Data to Server SSH test failed: {str(e)}")
             return {"success": False, "details": str(e)}
         finally:
+            # Make sure cleanup is called
+            logger.info("Calling cleanup in SSH DTS test finally block")
+            # await self.cleanup()
+
+    async def cleanup(self):
+        """
+        Override cleanup to ensure data_sender configuration is properly cleaned up
+        """
+        try:
+            # Log that we're starting cleanup
+            logger.info("DataToServerSSHTest: Starting explicit cleanup process")
+
+            try:
+                # Import here to avoid circular imports
+                from src.backend.validators import WirelessValidator
+
+                # Create validator with EXPLICITLY set 'ssh' test type to force cleanup
+                validator = WirelessValidator(self.device_config, test_type="ssh")
+
+                # Connect with a new connection to ensure it works
+                await validator.ssh_client.connect()
+
+                # Manually force the _cleanup_configuration method to run
+                logger.info("Forcing cleanup with validator._cleanup_configuration")
+                await validator._cleanup_configuration(
+                    self.full_scenario_config, clean_all=True
+                )
+
+                logger.info("Successfully cleaned up Data to Server configuration")
+
+                # Close validator's SSH connection
+                await validator.ssh_client.close()
+
+            except Exception as cleanup_error:
+                logger.error(
+                    f"Error during configuration cleanup: {str(cleanup_error)}"
+                )
+
+            # Close the SSH connection
             await self.ssh_client.close()
+            logger.info(f"SSH connection closed for {self.__class__.__name__}")
+
+        except Exception as e:
+            logger.error(f"Failed to complete cleanup: {str(e)}")
 
     async def _identify_sections(self):
         """Identify existing sections or determine the next available section IDs."""
@@ -288,6 +330,8 @@ class DataToServerSSHTest(BaseSSHTest):
 
             # Apply changes
             await self._apply_changes()
+
+            self.config_changes_made = True
 
         except Exception as e:
             logger.error(f"Failed to configure Data to Server via SSH: {str(e)}")

@@ -53,12 +53,21 @@ class DataToServerAPITest(BaseAPITest):
                 )
 
                 delete_request = {"data": [str(collection_id)]}
+                logger.info("Delete request:")
+                logger.info(delete_request)
+
+                headers = {
+                    "X-CSRF-PROTECTION": "1",
+                    "Origin": "https://192.168.1.1",
+                    "Referer": "https://192.168.1.1/services/data_sender",
+                }
 
                 try:
                     delete_result = await self.api_request(
                         "delete",
                         f"{self.api_endpoint}/collections/config",
                         delete_request,
+                        headers=headers,
                     )
                     logger.info(
                         f"Deleted Data to Server configuration result: {json.dumps(delete_result)}"
@@ -105,12 +114,6 @@ class DataToServerAPITest(BaseAPITest):
                 logger.error(f"Data to Server API test failed: {str(e)}")
                 result.update({"success": False, "error": str(e), "details": str(e)})
             finally:
-                # Cleanup
-                try:
-                    await self.cleanup()
-                except Exception as e:
-                    logger.error(f"Data to Server API test cleanup failed: {str(e)}")
-
                 # Calculate duration
                 end_time = asyncio.get_event_loop().time()
                 result["duration"] = round(end_time - start_time, 2)

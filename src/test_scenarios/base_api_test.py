@@ -133,7 +133,14 @@ class BaseAPITest(BaseTestScenario):
                 else:
                     response = await self.session.put(url, headers=headers, json=data)
             elif method.lower() == "delete":
-                response = await self.session.delete(url, headers=headers)
+                if raw_data:
+                    response = await self.session.delete(
+                        url, headers=headers, data=data
+                    )
+                else:
+                    response = await self.session.delete(
+                        url, headers=headers, json=data
+                    )
             else:
                 raise ValueError(f"Unsupported HTTP method: {method}")
 

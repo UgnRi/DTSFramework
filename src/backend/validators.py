@@ -12,11 +12,11 @@ logger = setup_logger()
 
 
 class WirelessValidator:
-    def __init__(self, device_config):
+    def __init__(self, device_config, test_type=None):
         self.ssh_client = SSHClient(device_config)
         self.message_received = Event()
         self.last_message = None
-        self.test_type = self.detect_test_type()
+        self.test_type = test_type or self.detect_test_type()
 
     def detect_test_type(self):
         """
@@ -48,7 +48,7 @@ class WirelessValidator:
             logger.error(f"Error in MQTT callback: {str(e)}")
 
     async def validate_mqtt_message(
-        self, server_config, expected_topic, mqtt_server, timeout=60
+        self, server_config, expected_topic, mqtt_server, timeout=10
     ):
         """
         Validate MQTT message by using mosquitto_sub command
@@ -365,7 +365,6 @@ class WirelessValidator:
         """Internal method to validate configurations with dynamic section support"""
         try:
             await self.ssh_client.connect()
-
             # Extract the nested configs if present
             mqtt_config = (
                 mqtt_config.get("config", mqtt_config) if mqtt_config else None
@@ -714,6 +713,7 @@ class WirelessValidator:
                     )
 
             if self.test_type == "ssh":
+                logger.info("clean up if statement")
                 await self._cleanup_configuration(dts_config, clean_all=True)
 
             return {"success": overall_success, "details": results}
