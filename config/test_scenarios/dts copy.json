@@ -314,7 +314,7 @@
             "topic": "test/topic123",
             "client_id": "test_client",
             "QoS": 2,
-            "enable_secure_connection": false,
+            "enable_secure_connection": true,
             "secure_connection": {
                 "allow_insecure_connection": true,
                 "certificate_files_from_device": true,

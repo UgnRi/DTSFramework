@@ -680,7 +680,7 @@ class DataToServerAPITest(BaseAPITest):
                 "mqtt_keepalive": str(keepalive),
                 "mqtt_topic": topic,
                 "mqtt_client_id": client_id,
-                "http_tls": "",  # Empty fields from the example API requests
+                "http_tls": "",
                 "http_host": "",
                 "http_header": "",
             }
@@ -688,6 +688,7 @@ class DataToServerAPITest(BaseAPITest):
             # Add TLS/secure connection if configured in server_config
             if server_config.get("enable_secure_connection", False):
                 server_plugin["mqtt_tls"] = "1"
+                server_plugin["mqtt_tls_type"] = "cert"
 
                 # Handle secure connection settings
                 if "secure_connection" in server_config:
@@ -700,7 +701,7 @@ class DataToServerAPITest(BaseAPITest):
 
                     # Handle certificates based on source (device or custom)
                     if "certificate_files_from_device" in secure_conn:
-                        server_plugin["mqtt_certificates_from_device"] = (
+                        server_plugin["mqtt_device_files"] = (
                             "1" if secure_conn["certificate_files_from_device"] else "0"
                         )
 
@@ -709,17 +710,20 @@ class DataToServerAPITest(BaseAPITest):
                             if "device_certificates" in secure_conn:
                                 dev_certs = secure_conn["device_certificates"]
                                 if "certificate_authority_file" in dev_certs:
-                                    server_plugin["mqtt_ca_file"] = dev_certs[
-                                        "certificate_authority_file"
-                                    ]
+                                    server_plugin["mqtt_cafile"] = (
+                                        "/etc/certificates/"
+                                        + dev_certs["certificate_authority_file"]
+                                    )
                                 if "client_certificate" in dev_certs:
-                                    server_plugin["mqtt_cert_file"] = dev_certs[
-                                        "client_certificate"
-                                    ]
+                                    server_plugin["mqtt_certfile"] = (
+                                        "/etc/ssl/certs/"
+                                        + dev_certs["client_certificate"]
+                                    )
                                 if "client_private_keyfile" in dev_certs:
-                                    server_plugin["mqtt_key_file"] = dev_certs[
-                                        "client_private_keyfile"
-                                    ]
+                                    server_plugin["mqtt_keyfile"] = (
+                                        "/etc/certificates/"
+                                        + dev_certs["client_private_keyfile"]
+                                    )
                         else:
                             # Use custom certificates
                             if "certificate_authority_file" in secure_conn:

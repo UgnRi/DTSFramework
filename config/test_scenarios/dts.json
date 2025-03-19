@@ -3,7 +3,7 @@
     "description": "Data to Server configuration test",
     "config": {
         "instanceName": "test_instance3",
-        "data_config-Base": {
+        "data_config": {
             "name": "input",
             "type": "Base",
             "type_settings": {},
@@ -205,7 +205,7 @@
                 "retain"
             ]
         },
-        "data_config": {
+        "data_config-mqtt2": {
             "name": "input",
             "type": "MQTT",
             "type_settings": {
@@ -314,7 +314,7 @@
             "topic": "test/topic123",
             "client_id": "test_client",
             "QoS": 2,
-            "enable_secure_connection": false,
+            "enable_secure_connection": true,
             "secure_connection": {
                 "allow_insecure_connection": true,
                 "certificate_files_from_device": true,
@@ -323,9 +323,9 @@
                     "client_certificate": "ca-certificates.crt",
                     "client_private_keyfile": "ca-file.key.pem"
                 },
-                "certificate_authority_file": "/home/studentas/Documents/ca1-file.crt",
-                "client_certificate": "/home/studentas/Documents/certificate1-file.crt",
-                "client_private_keyfile": "/home/studentas/Documents/key1-file.crt"
+                "certificate_authority_file": "/home/studentas/documents/ca1-file.crt",
+                "client_certificate": "/home/studentas/documents/certificate1-file.crt",
+                "client_private_keyfile": "/home/studentas/documents/key1-file.crt"
             },
             "use_credentials": false,
             "username": "username",
