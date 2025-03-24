@@ -210,19 +210,18 @@ class DTSPage(BasePage):
             raise
 
     async def _click_add_button(self):
-        """Click the add button"""
+        """Click the add button with the solid background (not the '+ New data input' button)"""
         try:
-            logger.info("Clicking add button")
+            logger.info("Clicking solid background add button")
 
-            # Use a more specific selector
-            add_button = self.page.locator('button[test-id="button-add"]')
+            add_button = self.page.locator(
+                'button[test-id="button-add"].bg-primary-300'
+            )
             await add_button.wait_for(state="visible", timeout=5000)
             await add_button.click()
 
-            # Wait for the click action to take effect
             await self.page.wait_for_timeout(1000)
-
-            logger.info("Successfully clicked add button")
+            logger.info("Successfully clicked solid background add button")
         except Exception as e:
             logger.error(f"Failed to click add button: {str(e)}")
             raise
